@@ -752,59 +752,61 @@ export default function EcoApp() {
             </div>
             {memberTasks.map(task => {
               try {
+              const accent = task.accent || "#2E7D32";
+              const color  = task.color  || "#E8F5E9";
               const pct = task.goal > 0 ? Math.min(100, Math.round((task.raised||0)/task.goal*100)) : 0;
               const done = pct >= 100;
               const isJoin = uid && Array.isArray(task.joined) && task.joined.includes(uid);
               const myAmt = myTaskDon[task.id]||0;
               return (
-                <div key={task.id} style={{ background:task.color||"#fff", borderRadius:18, padding:16, marginBottom:14, boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
+                <div key={task.id} style={{ background:color, borderRadius:18, padding:16, marginBottom:14, boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
                   <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:8 }}>
-                    <div style={{ fontSize:32 }}>{task.icon}</div>
+                    <div style={{ fontSize:32 }}>{task.icon||"🌱"}</div>
                     <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:"bold", fontSize:15, color:task.accent }}>{task.title}</div>
+                      <div style={{ fontWeight:"bold", fontSize:15, color:accent }}>{task.title}</div>
                       <div style={{ fontSize:11, color:"#888" }}>{task.avatar} {task.creatorName} · {task.deadline}</div>
                     </div>
                     <div style={{ fontSize:11, background:(CAT_COLORS[task.category as keyof typeof CAT_COLORS]||"#4CAF50")+"22", color:CAT_COLORS[task.category as keyof typeof CAT_COLORS]||"#4CAF50", borderRadius:99, padding:"3px 8px", fontWeight:"bold" }}>{task.category}</div>
                   </div>
                   <div style={{ fontSize:13, color:"#555", marginBottom:10 }}>{task.desc}</div>
                   {task.location && (
-                    <button onClick={() => setMapOpen(mapOpen===task.id?null:task.id)} style={{ fontSize:12, color:task.accent, background:"transparent", border:"none", cursor:"pointer", marginBottom:8, padding:0 }}>
+                    <button onClick={() => setMapOpen(mapOpen===task.id?null:task.id)} style={{ fontSize:12, color:accent, background:"transparent", border:"none", cursor:"pointer", marginBottom:8, padding:0 }}>
                       📍 {task.location.name} — 點擊查看地圖
                     </button>
                   )}
                   {mapOpen === task.id && task.location && (
-                    <MiniMap lat={task.location.lat} lng={task.location.lng} label={task.location.name} accent={task.accent} />
+                    <MiniMap lat={task.location.lat} lng={task.location.lng} label={task.location.name} accent={accent} />
                   )}
                   <div style={{ marginBottom:12 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:"#888", marginBottom:4 }}>
-                      <span style={{ color:task.accent, fontWeight:"bold" }}>NT${task.raised.toLocaleString()} 募得</span>
-                      <span>目標 NT${task.goal.toLocaleString()}</span>
+                      <span style={{ color:accent, fontWeight:"bold" }}>NT${(task.raised||0).toLocaleString()} 募得</span>
+                      <span>目標 NT${(task.goal||0).toLocaleString()}</span>
                     </div>
                     <div style={{ background:"#f1f8e9", borderRadius:99, height:8, overflow:"hidden" }}>
-                      <div style={{ height:"100%", width:pct+"%", background:"linear-gradient(90deg,"+task.accent+"88,"+task.accent+")", borderRadius:99, transition:"width 0.6s" }} />
+                      <div style={{ height:"100%", width:pct+"%", background:"linear-gradient(90deg,"+accent+"88,"+accent+")", borderRadius:99, transition:"width 0.6s" }} />
                     </div>
                     <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-                      <span style={{ fontSize:11, color:task.accent, fontWeight:"bold" }}>{pct.toFixed(0)}%</span>
-                      <span style={{ fontSize:11, color:"#aaa" }}>👤 {task.backers} 人支持 · {(task.joined||[]).length} 人加入</span>
+                      <span style={{ fontSize:11, color:accent, fontWeight:"bold" }}>{pct.toFixed(0)}%</span>
+                      <span style={{ fontSize:11, color:"#aaa" }}>👤 {task.backers||0} 人支持 · {(task.joined||[]).length} 人加入</span>
                     </div>
                   </div>
                   {task.updates&&task.updates.length>0 && (
-                    <div style={{ background:"rgba(0,0,0,0.03)", borderRadius:10, padding:"8px 10px", marginBottom:12, fontSize:11, color:"#666", borderLeft:"3px solid "+task.accent }}>
+                    <div style={{ background:"rgba(0,0,0,0.03)", borderRadius:10, padding:"8px 10px", marginBottom:12, fontSize:11, color:"#666", borderLeft:"3px solid "+accent }}>
                       📢 {task.updates[task.updates.length-1]}
                     </div>
                   )}
                   {!done && !isGuest && (
                     <div style={{ display:"flex", gap:8 }}>
                       {[50,100,200].map(amt => (
-                        <button key={amt} onClick={() => donateTask(task.id, amt)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:"1.5px solid "+task.accent, background:"transparent", color:task.accent, fontSize:12, cursor:"pointer", fontFamily:FF }}>NT${amt}</button>
+                        <button key={amt} onClick={() => donateTask(task.id, amt)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:"1.5px solid "+accent, background:"transparent", color:accent, fontSize:12, cursor:"pointer", fontFamily:FF }}>NT${amt}</button>
                       ))}
-                      <button onClick={() => joinTask(task.id)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:"1.5px solid "+task.accent, background:isJoin?task.accent:"transparent", color:isJoin?"#fff":task.accent, fontWeight:"bold", fontSize:12, cursor:"pointer", fontFamily:FF }}>
+                      <button onClick={() => joinTask(task.id)} style={{ flex:1, padding:"8px 0", borderRadius:10, border:"1.5px solid "+accent, background:isJoin?accent:"transparent", color:isJoin?"#fff":accent, fontWeight:"bold", fontSize:12, cursor:"pointer", fontFamily:FF }}>
                         {isJoin?"✅ 已加入":"加入"}
                       </button>
                     </div>
                   )}
-                  {done && <div style={{ textAlign:"center", padding:"10px", background:task.accent+"18", borderRadius:10, fontSize:13, color:task.accent, fontWeight:"bold" }}>🎉 目標達成！</div>}
-                  {myAmt>0 && <div style={{ marginTop:8, textAlign:"right", fontSize:11, color:task.accent, fontWeight:"bold" }}>我贊助 NT${myAmt}</div>}
+                  {done && <div style={{ textAlign:"center", padding:"10px", background:accent+"18", borderRadius:10, fontSize:13, color:accent, fontWeight:"bold" }}>🎉 目標達成！</div>}
+                  {myAmt>0 && <div style={{ marginTop:8, textAlign:"right", fontSize:11, color:accent, fontWeight:"bold" }}>我贊助 NT${myAmt}</div>}
                 </div>
               );
               } catch(e) {
