@@ -751,9 +751,10 @@ export default function EcoApp() {
               )}
             </div>
             {memberTasks.map(task => {
+              try {
               const pct = task.goal > 0 ? Math.min(100, Math.round((task.raised||0)/task.goal*100)) : 0;
               const done = pct >= 100;
-              const isJoin = uid && (task.joined||[]).includes(uid);
+              const isJoin = uid && Array.isArray(task.joined) && task.joined.includes(uid);
               const myAmt = myTaskDon[task.id]||0;
               return (
                 <div key={task.id} style={{ background:task.color||"#fff", borderRadius:18, padding:16, marginBottom:14, boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
@@ -806,6 +807,9 @@ export default function EcoApp() {
                   {myAmt>0 && <div style={{ marginTop:8, textAlign:"right", fontSize:11, color:task.accent, fontWeight:"bold" }}>我贊助 NT${myAmt}</div>}
                 </div>
               );
+              } catch(e) {
+                return <div key={task.id} style={{ background:"#ffebee", borderRadius:12, padding:12, marginBottom:10, fontSize:12, color:"#c62828" }}>⚠️ 任務資料錯誤：{task.title||task.id}</div>;
+              }
             })}
           </div>
         )}
