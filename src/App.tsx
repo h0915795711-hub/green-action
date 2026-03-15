@@ -751,7 +751,7 @@ export default function EcoApp() {
               )}
             </div>
             {memberTasks.map(task => {
-              const pct = Math.min(100, Math.round(task.raised/task.goal*100));
+              const pct = task.goal > 0 ? Math.min(100, Math.round((task.raised||0)/task.goal*100)) : 0;
               const done = pct >= 100;
               const isJoin = uid && (task.joined||[]).includes(uid);
               const myAmt = myTaskDon[task.id]||0;
@@ -763,7 +763,7 @@ export default function EcoApp() {
                       <div style={{ fontWeight:"bold", fontSize:15, color:task.accent }}>{task.title}</div>
                       <div style={{ fontSize:11, color:"#888" }}>{task.avatar} {task.creatorName} · {task.deadline}</div>
                     </div>
-                    <div style={{ fontSize:11, background:CAT_COLORS[task.category as keyof typeof CAT_COLORS]+"22", color:CAT_COLORS[task.category as keyof typeof CAT_COLORS], borderRadius:99, padding:"3px 8px", fontWeight:"bold" }}>{task.category}</div>
+                    <div style={{ fontSize:11, background:(CAT_COLORS[task.category as keyof typeof CAT_COLORS]||"#4CAF50")+"22", color:CAT_COLORS[task.category as keyof typeof CAT_COLORS]||"#4CAF50", borderRadius:99, padding:"3px 8px", fontWeight:"bold" }}>{task.category}</div>
                   </div>
                   <div style={{ fontSize:13, color:"#555", marginBottom:10 }}>{task.desc}</div>
                   {task.location && (
