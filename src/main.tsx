@@ -4,7 +4,8 @@ import './index.css'
 import App from './App.tsx'
 import AdminPanel from './AdminPanel.tsx'
 
-const isAdmin = window.location.pathname === '/admin'
+const path = window.location.pathname
+const isAdmin = path === '/admin' || path === '/green-action/admin' || path.endsWith('/admin')
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
