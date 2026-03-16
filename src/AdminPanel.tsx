@@ -527,7 +527,7 @@ export default function AdminPanel() {
         </div>
 
         {editCh !== null && (
-          <div style={{ background:"#fff", borderRadius:16, padding:24, marginBottom:20, boxShadow:"0 2px 16px rgba(0,0,0,0.1)" }}>
+          <div style={{ background:"#ffffff", borderRadius:16, padding:24, marginBottom:20, boxShadow:"0 2px 16px rgba(0,0,0,0.1)", color:"#333" }}>
             <h3 style={{ margin:"0 0 16px", color:"#1b5e20" }}>{isEdit?"✏️ 編輯挑戰":"➕ 新增挑戰"}</h3>
             <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
               {ICONS.map(ic => (
@@ -615,7 +615,7 @@ export default function AdminPanel() {
         </div>
 
         {editPr !== null && (
-          <div style={{ background:"#fff", borderRadius:16, padding:24, marginBottom:20, boxShadow:"0 2px 16px rgba(0,0,0,0.1)" }}>
+          <div style={{ background:"#ffffff", borderRadius:16, padding:24, marginBottom:20, boxShadow:"0 2px 16px rgba(0,0,0,0.1)", color:"#333" }}>
             <h3 style={{ margin:"0 0 16px", color:"#1b5e20" }}>{isEdit?"✏️ 編輯計畫":"➕ 新增計畫"}</h3>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
               {[["title","計畫名稱"],["org","主辦單位"],["desc","說明"]].map(([k,l]) => (
@@ -680,7 +680,11 @@ export default function AdminPanel() {
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#f5f7f5", fontFamily:FF }}>
+    <div style={{ minHeight:"100vh", background:"#f5f7f5", fontFamily:FF, colorScheme:"light", color:"#333" }}>
+    <style>{`
+      * { color-scheme: light !important; }
+      input, textarea, select { color: #333 !important; background-color: #fafafa !important; }
+    `}</style>
       {toast && (
         <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", background:"#1b5e20", color:"#fff", borderRadius:30, padding:"10px 24px", fontWeight:"bold", fontSize:14, zIndex:9999, whiteSpace:"nowrap", boxShadow:"0 4px 20px rgba(0,0,0,0.25)" }}>
           {toast}
