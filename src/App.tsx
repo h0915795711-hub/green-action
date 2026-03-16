@@ -476,16 +476,30 @@ export default function EcoApp() {
   async function submitTask() {
     if (!newTask.title || !newTask.desc || !newTask.goal || !newTask.deadline) return;
     const idx = Math.floor(Math.random()*ACCENT_POOL.length);
+
+    // ✅ 用地址查詢真實座標
+    let lat = 25.033;
+    let lng = 121.565;
+    if (newTask.loc) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(newTask.loc)}&format=json&limit=1`);
+        const data = await res.json();
+        if (data && data.length > 0) {
+          lat = parseFloat(data[0].lat);
+          lng = parseFloat(data[0].lon);
+        }
+      } catch(e) {}
+    }
+
     const task = {
       creatorName: userName, avatar: userAvatar,
       icon: newTask.icon, title: newTask.title, desc: newTask.desc,
       category: newTask.category, goal: Number(newTask.goal), raised: 0, backers: 0,
       deadline: newTask.deadline, accent: ACCENT_POOL[idx], color: COLOR_POOL[idx],
       joined: [], updates: [],
-      location: newTask.loc ? { name: newTask.loc, lat: 25.033, lng: 121.565 } : null,
+      location: newTask.loc ? { name: newTask.loc, lat, lng } : null,
       createdAt: Date.now(),
     };
-    // ✅ 改用 Realtime Database push
     const tasksRef = ref(db, "memberTasks");
     const newRef = push(tasksRef);
     await set(newRef, task);
@@ -859,9 +873,9 @@ export default function EcoApp() {
               <div key={k} style={{ marginBottom:12 }}>
                 <div style={{ fontSize:12, color:"#555", fontWeight:"bold", marginBottom:6 }}>{l} {k!=="loc"?"*":""}</div>
                 {k==="desc" ? (
-                  <textarea value={(newTask as any)[k]} onChange={e=>setNewTask(p=>({...p,[k]:e.target.value}))} placeholder={ph} rows={3} style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:13, fontFamily:FF, outline:"none", resize:"none", boxSizing:"border-box", background:"#fafafa" }} />
+                  <textarea value={(newTask as any)[k]} onChange={e=>setNewTask(p=>({...p,[k]:e.target.value}))} placeholder={ph} rows={3} style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:13, fontFamily:FF, outline:"none", resize:"none", boxSizing:"border-box", background:"#fafafa", color:"#333" }} />
                 ) : (
-                  <input value={(newTask as any)[k]} onChange={e=>setNewTask(p=>({...p,[k]:e.target.value}))} placeholder={ph} style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:14, fontFamily:FF, outline:"none", boxSizing:"border-box", background:"#fafafa" }} />
+                  <input value={(newTask as any)[k]} onChange={e=>setNewTask(p=>({...p,[k]:e.target.value}))} placeholder={ph} style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:14, fontFamily:FF, outline:"none", boxSizing:"border-box", background:"#fafafa", color:"#333" }} />
                 )}
               </div>
             ))}
@@ -874,12 +888,12 @@ export default function EcoApp() {
               </div>
               <div>
                 <div style={{ fontSize:12, color:"#555", fontWeight:"bold", marginBottom:6 }}>募款目標（新台幣）*</div>
-                <input type="number" value={newTask.goal} onChange={e=>setNewTask(p=>({...p,goal:e.target.value}))} placeholder="5000" style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:13, fontFamily:FF, outline:"none", boxSizing:"border-box", background:"#fafafa" }} />
+                <input type="number" value={newTask.goal} onChange={e=>setNewTask(p=>({...p,goal:e.target.value}))} placeholder="5000" style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:13, fontFamily:FF, outline:"none", boxSizing:"border-box", background:"#fafafa", color:"#333" }} />
               </div>
             </div>
             <div style={{ marginBottom:20 }}>
               <div style={{ fontSize:12, color:"#555", fontWeight:"bold", marginBottom:6 }}>截止日期 *</div>
-              <input type="date" value={newTask.deadline} onChange={e=>setNewTask(p=>({...p,deadline:e.target.value}))} style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:13, fontFamily:FF, outline:"none", boxSizing:"border-box", background:"#fafafa" }} />
+              <input type="date" value={newTask.deadline} onChange={e=>setNewTask(p=>({...p,deadline:e.target.value}))} style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:13, fontFamily:FF, outline:"none", boxSizing:"border-box", background:"#fafafa", color:"#333" }} />
             </div>
             <button onClick={submitTask} style={{ width:"100%", padding:14, borderRadius:14, border:"none", background:newTask.title&&newTask.desc&&newTask.goal&&newTask.deadline?"linear-gradient(135deg,#2e7d32,#43a047)":"#e0e0e0", color:newTask.title&&newTask.desc&&newTask.goal&&newTask.deadline?"#fff":"#aaa", fontWeight:"bold", fontSize:15, cursor:"pointer", fontFamily:FF, marginBottom:10 }}>
               🌱 發起任務
