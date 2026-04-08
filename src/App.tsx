@@ -80,8 +80,25 @@ const DIFF_BADGE  = { 簡單:{bg:"#E8F5E9",color:"#388E3C"}, 中等:{bg:"#FFF8E1
 const ACCENT_POOL = ["#2E7D32","#1565C0","#F57F17","#E65100","#6A1B9A","#00695C","#C62828","#37474F"];
 const COLOR_POOL  = ["#E8F5E9","#E3F2FD","#FFF8E1","#FFF3E0","#F3E5F5","#E0F7FA","#FCE4EC","#ECEFF1"];
 const TASK_ICONS  = ["🌱","🌳","🌊","♻️","🌻","🧹","🚴","💧","🐝","☀️","🦋","🐢","🌿","🏕️","🌾"];
-const TABS        = ["挑戰","打卡","排行榜","贊助","發起"];
-const TAB_ICONS_M = { 挑戰:"🌿", 打卡:"📅", 排行榜:"🏆", 贊助:"💚", 發起:"✨" };
+const TABS        = ["挑戰","打卡","排行榜","贊助","發起","群組"];
+const TAB_ICONS_M = { 挑戰:"🌿", 打卡:"📅", 排行榜:"🏆", 贊助:"💚", 發起:"✨", 群組:"🏘️" };
+
+// ── 群組榮譽系統 ──────────────────────────────────────────────
+const GROUP_HONORS = [
+  { min:0,    max:499,  name:"環保新兵",   icon:"🌱", color:"#81C784", bg:"#E8F5E9" },
+  { min:500,  max:1499, name:"綠色守護者", icon:"🌿", color:"#2E7D32", bg:"#C8E6C9" },
+  { min:1500, max:2999, name:"森林衛士",   icon:"🌳", color:"#1B5E20", bg:"#A5D6A7" },
+  { min:3000, max:4999, name:"地球鬥士",   icon:"🌍", color:"#1565C0", bg:"#BBDEFB" },
+  { min:5000, max:9999, name:"環保傳奇",   icon:"🌟", color:"#F57F17", bg:"#FFF9C4" },
+];
+
+function getGroupHonor(pts: number) {
+  return GROUP_HONORS.find(h => pts >= h.min && pts <= h.max) || GROUP_HONORS[0];
+}
+
+function generateInviteCode(uid: string) {
+  return (uid.slice(0,4) + Math.random().toString(36).slice(2,6)).toUpperCase();
+}
 const FF          = "Georgia, serif";
 const AVATARS     = ["🌱","🌿","🍃","🌳","🌍","🌊","☀️","🐝","🦋","🐢","🌻","⚡","🔋","♻️","🌾"];
 
@@ -311,9 +328,91 @@ export default function EcoApp() {
   const [memberTasks, setMemberTasks] = useState(MEMBER_TASKS_DEFAULT);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
+  // ── 群組相關狀態 ──────────────────────────────────────────────
+  const [myGroup,      setMyGroup]      = useState<any>(null);
+  const [groupMembers, setGroupMembers] = useState<any[]>([]);
+  const [allGroups,    setAllGroups]    = useState<any[]>([]);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showJoinGroup,   setShowJoinGroup]   = useState(false);
+  const [newGroupName,    setNewGroupName]    = useState("");
+  const [newGroupIcon,    setNewGroupIcon]    = useState("🌿");
+  const [joinCode,        setJoinCode]        = useState("");
+  const GROUP_ICONS = ["🌿","🌳","🌍","🌊","☀️","🐝","🦋","♻️","🌱","⚡"];
+
   function showToast(msg: string) { setToast(msg); setTimeout(()=>setToast(null),2500); }
 
-  // ── Auth 監聽 ─────────────────────────────────────────────────
+  // ── 群組監聽 ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!uid) return;
+    const groupsRef = ref(db, "groups");
+    const unsub = onValue(groupsRef, snap => {
+      if (!snap.exists()) { setAllGroups([]); return; }
+      const data = snap.val();
+      const list = Object.entries(data).map(([id, val]: any) => ({ id, ...val }));
+      setAllGroups(list);
+      const mine = list.find((g: any) => g.members && g.members[uid]);
+      if (mine) {
+        setMyGroup(mine);
+        const members = Object.entries(mine.members || {}).map(([memberId, val]: any) => ({ uid: memberId, ...val }));
+        setGroupMembers(members);
+      } else {
+        setMyGroup(null);
+        setGroupMembers([]);
+      }
+    });
+    return unsub;
+  }, [uid]);
+
+  // ── 建立群組 ──────────────────────────────────────────────────
+  async function createGroup() {
+    if (!uid || !newGroupName.trim()) return;
+    const inviteCode = generateInviteCode(uid);
+    const groupRef = push(ref(db, "groups"));
+    await set(groupRef, {
+      name: newGroupName.trim(),
+      icon: newGroupIcon,
+      inviteCode,
+      creatorUid: uid,
+      createdAt: Date.now(),
+      members: {
+        [uid]: { displayName: userName, avatar: userAvatar, points, joinedAt: Date.now() }
+      },
+      weeklyPoints: { [uid]: points },
+    });
+    setShowCreateGroup(false);
+    setNewGroupName("");
+    showToast("🏘️ 群組建立成功！");
+  }
+
+  // ── 加入群組 ──────────────────────────────────────────────────
+  async function joinGroup() {
+    if (!uid || !joinCode.trim()) return;
+    const targetGroup = allGroups.find(g => g.inviteCode === joinCode.trim().toUpperCase());
+    if (!targetGroup) { showToast("❌ 找不到此邀請碼"); return; }
+    if (targetGroup.members && targetGroup.members[uid]) { showToast("⚠️ 您已在此群組"); return; }
+    await update(ref(db, `groups/${targetGroup.id}/members/${uid}`), {
+      displayName: userName, avatar: userAvatar, points, joinedAt: Date.now(),
+    });
+    await update(ref(db, `groups/${targetGroup.id}/weeklyPoints`), { [uid]: points });
+    setShowJoinGroup(false);
+    setJoinCode("");
+    showToast("✅ 成功加入群組！");
+  }
+
+  // ── 離開群組 ──────────────────────────────────────────────────
+  async function leaveGroup() {
+    if (!uid || !myGroup) return;
+    if (!window.confirm("確定要離開群組？")) return;
+    await remove(ref(db, `groups/${myGroup.id}/members/${uid}`));
+    showToast("已離開群組");
+  }
+
+  // ── 同步群組積分 ──────────────────────────────────────────────
+  async function syncGroupPoints() {
+    if (!uid || !myGroup) return;
+    await update(ref(db, `groups/${myGroup.id}/members/${uid}`), { points, displayName: userName, avatar: userAvatar });
+    await update(ref(db, `groups/${myGroup.id}/weeklyPoints`), { [uid]: points });
+  }
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
@@ -829,9 +928,190 @@ export default function EcoApp() {
             })}
           </div>
         )}
-      </div>
 
-      {/* 贊助 Modal */}
+        {/* ── 群組 Tab ── */}
+        {tab === "群組" && (
+          <div>
+            {!myGroup ? (
+              // 未加入群組
+              <div>
+                <div style={{ textAlign:"center", padding:"32px 20px", background:"linear-gradient(135deg,#1b5e20,#2e7d32)", borderRadius:20, marginBottom:20, color:"#fff" }}>
+                  <div style={{ fontSize:48, marginBottom:8 }}>🏘️</div>
+                  <div style={{ fontWeight:"bold", fontSize:18, marginBottom:4 }}>加入或建立群組</div>
+                  <div style={{ fontSize:13, opacity:0.8 }}>與朋友一起累積環保積分，競爭週排名！</div>
+                </div>
+                {isGuest && (
+                  <div style={{ background:"#fff3e0", borderRadius:14, padding:16, marginBottom:16, textAlign:"center", fontSize:13, color:"#e65100" }}>
+                    ⚠️ 請先登入才能使用群組功能
+                  </div>
+                )}
+                {!isGuest && (
+                  <div style={{ display:"flex", gap:12, marginBottom:20 }}>
+                    <button onClick={() => setShowCreateGroup(true)} style={{ flex:1, padding:16, borderRadius:16, border:"none", background:"#2e7d32", color:"#fff", fontWeight:"bold", fontSize:15, cursor:"pointer", fontFamily:FF }}>
+                      ✨ 建立群組
+                    </button>
+                    <button onClick={() => setShowJoinGroup(true)} style={{ flex:1, padding:16, borderRadius:16, border:"2px solid #2e7d32", background:"#fff", color:"#2e7d32", fontWeight:"bold", fontSize:15, cursor:"pointer", fontFamily:FF }}>
+                      🔗 輸入邀請碼
+                    </button>
+                  </div>
+                )}
+
+                {/* 榮譽系統說明 */}
+                <div style={{ fontWeight:"bold", fontSize:15, color:"#1b5e20", marginBottom:12 }}>🏆 群組榮譽系統</div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {GROUP_HONORS.map(h => (
+                    <div key={h.name} style={{ background:"#fff", borderRadius:14, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, boxShadow:"0 2px 8px rgba(0,0,0,0.06)" }}>
+                      <div style={{ fontSize:28 }}>{h.icon}</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:"bold", color:h.color }}>{h.name}</div>
+                        <div style={{ fontSize:12, color:"#888" }}>{h.min.toLocaleString()} – {h.max.toLocaleString()} 群組總積分</div>
+                      </div>
+                      <div style={{ background:h.bg, borderRadius:99, padding:"4px 12px", fontSize:12, color:h.color, fontWeight:"bold" }}>{h.icon}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              // 已加入群組
+              <div>
+                {/* 群組頭部 */}
+                <div style={{ background:"linear-gradient(135deg,#1b5e20,#2e7d32)", borderRadius:20, padding:20, marginBottom:20, color:"#fff" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
+                    <div style={{ fontSize:40 }}>{myGroup.icon}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:"bold", fontSize:18 }}>{myGroup.name}</div>
+                      <div style={{ fontSize:12, opacity:0.8 }}>{groupMembers.length} 位成員</div>
+                    </div>
+                    {(() => {
+                      const totalPts = groupMembers.reduce((s, m) => s + (m.points||0), 0);
+                      const honor = getGroupHonor(totalPts);
+                      return (
+                        <div style={{ textAlign:"center" }}>
+                          <div style={{ fontSize:28 }}>{honor.icon}</div>
+                          <div style={{ fontSize:11, opacity:0.9 }}>{honor.name}</div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  {/* 群組積分 */}
+                  {(() => {
+                    const totalPts = groupMembers.reduce((s, m) => s + (m.points||0), 0);
+                    const honor = getGroupHonor(totalPts);
+                    const nextHonor = GROUP_HONORS[GROUP_HONORS.findIndex(h => h.name === honor.name) + 1];
+                    const pct = nextHonor ? Math.min(100, Math.round((totalPts - honor.min) / (nextHonor.min - honor.min) * 100)) : 100;
+                    return (
+                      <div>
+                        <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}>
+                          <span>群組總積分：{totalPts.toLocaleString()} pts</span>
+                          {nextHonor && <span>距下一等級：{(nextHonor.min - totalPts).toLocaleString()}</span>}
+                        </div>
+                        <div style={{ background:"rgba(255,255,255,0.3)", borderRadius:99, height:8, overflow:"hidden" }}>
+                          <div style={{ height:"100%", width:pct+"%", background:"#fff", borderRadius:99 }} />
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* 邀請碼 */}
+                <div style={{ background:"#fff", borderRadius:16, padding:16, marginBottom:16, boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
+                  <div style={{ fontSize:13, color:"#888", marginBottom:8 }}>🔗 邀請朋友加入</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ flex:1, background:"#f1f8e9", borderRadius:10, padding:"10px 14px", fontWeight:"bold", fontSize:18, color:"#2e7d32", letterSpacing:3, textAlign:"center" }}>
+                      {myGroup.inviteCode}
+                    </div>
+                    <button onClick={() => { navigator.clipboard?.writeText(myGroup.inviteCode); showToast("✅ 邀請碼已複製！"); }}
+                      style={{ padding:"10px 16px", borderRadius:10, border:"none", background:"#2e7d32", color:"#fff", fontWeight:"bold", cursor:"pointer", fontFamily:FF, fontSize:13 }}>
+                      複製
+                    </button>
+                  </div>
+                </div>
+
+                {/* 群組週積分排名 */}
+                <div style={{ fontWeight:"bold", fontSize:15, color:"#1b5e20", marginBottom:12 }}>📊 本週群組排名</div>
+                <div style={{ background:"#fff", borderRadius:16, overflow:"hidden", boxShadow:"0 2px 12px rgba(0,0,0,0.06)", marginBottom:16 }}>
+                  {[...groupMembers].sort((a,b) => (b.points||0) - (a.points||0)).map((m, i) => {
+                    const isMe = m.uid === uid;
+                    const honor = getGroupHonor(m.points||0);
+                    return (
+                      <div key={m.uid} style={{ display:"flex", alignItems:"center", padding:"12px 16px", borderBottom:"1px solid #f5f5f5", gap:10, background:isMe?"#f1f8e9":"#fff" }}>
+                        <div style={{ fontWeight:"bold", fontSize:18, color:i===0?"#F57F17":i===1?"#9e9e9e":i===2?"#8d6e63":"#aaa", width:28 }}>
+                          {i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)}
+                        </div>
+                        <div style={{ fontSize:24 }}>{m.avatar||"🌱"}</div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontWeight:"bold", fontSize:14 }}>{m.displayName||"會員"}{isMe?" (我)":""}</div>
+                          <div style={{ fontSize:11, color:honor.color }}>{honor.icon} {honor.name}</div>
+                        </div>
+                        <div style={{ fontWeight:"bold", color:"#2e7d32", fontSize:15 }}>{(m.points||0).toLocaleString()} pts</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 同步積分 + 離開按鈕 */}
+                <div style={{ display:"flex", gap:10 }}>
+                  <button onClick={syncGroupPoints} style={{ flex:1, padding:12, borderRadius:12, border:"none", background:"#2e7d32", color:"#fff", fontWeight:"bold", fontSize:14, cursor:"pointer", fontFamily:FF }}>
+                    🔄 同步我的積分
+                  </button>
+                  <button onClick={leaveGroup} style={{ padding:"12px 16px", borderRadius:12, border:"1px solid #ffcdd2", background:"#fff", color:"#c62828", fontWeight:"bold", fontSize:14, cursor:"pointer", fontFamily:FF }}>
+                    離開
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 建立群組 Modal */}
+            {showCreateGroup && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300 }} onClick={() => setShowCreateGroup(false)}>
+                <div style={{ background:"#fff", borderRadius:"22px 22px 0 0", padding:"28px 20px 36px", width:"100%", maxWidth:480 }} onClick={e=>e.stopPropagation()}>
+                  <div style={{ textAlign:"center", marginBottom:20 }}>
+                    <div style={{ fontSize:32 }}>🏘️</div>
+                    <div style={{ fontWeight:"bold", fontSize:17, color:"#1b5e20", marginTop:6 }}>建立新群組</div>
+                  </div>
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ fontSize:12, fontWeight:"bold", color:"#555", marginBottom:8 }}>選擇群組圖示</div>
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      {GROUP_ICONS.map(ic => (
+                        <button key={ic} onClick={() => setNewGroupIcon(ic)} style={{ width:44, height:44, borderRadius:12, border:`2px solid ${newGroupIcon===ic?"#2e7d32":"#eee"}`, background:newGroupIcon===ic?"#e8f5e9":"#fafafa", fontSize:22, cursor:"pointer" }}>{ic}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ fontSize:12, fontWeight:"bold", color:"#555", marginBottom:6 }}>群組名稱 *</div>
+                    <input value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="例如：環保好朋友" style={{ width:"100%", padding:"12px 14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:14, fontFamily:FF, outline:"none", boxSizing:"border-box", color:"#333" }} />
+                  </div>
+                  <button onClick={createGroup} disabled={!newGroupName.trim()} style={{ width:"100%", padding:14, borderRadius:14, border:"none", background:newGroupName.trim()?"linear-gradient(135deg,#2e7d32,#43a047)":"#e0e0e0", color:newGroupName.trim()?"#fff":"#aaa", fontWeight:"bold", fontSize:15, cursor:"pointer", fontFamily:FF, marginBottom:10 }}>
+                    ✨ 建立群組
+                  </button>
+                  <button onClick={() => setShowCreateGroup(false)} style={{ width:"100%", padding:12, borderRadius:12, border:"none", background:"#f1f8e9", color:"#888", fontSize:14, cursor:"pointer", fontFamily:FF }}>取消</button>
+                </div>
+              </div>
+            )}
+
+            {/* 加入群組 Modal */}
+            {showJoinGroup && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300 }} onClick={() => setShowJoinGroup(false)}>
+                <div style={{ background:"#fff", borderRadius:"22px 22px 0 0", padding:"28px 20px 36px", width:"100%", maxWidth:480 }} onClick={e=>e.stopPropagation()}>
+                  <div style={{ textAlign:"center", marginBottom:20 }}>
+                    <div style={{ fontSize:32 }}>🔗</div>
+                    <div style={{ fontWeight:"bold", fontSize:17, color:"#1b5e20", marginTop:6 }}>輸入邀請碼</div>
+                    <div style={{ fontSize:13, color:"#aaa", marginTop:4 }}>請朋友分享邀請碼給您</div>
+                  </div>
+                  <div style={{ marginBottom:20 }}>
+                    <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="例如：A1B2C3D4" maxLength={8}
+                      style={{ width:"100%", padding:"14px", borderRadius:12, border:"1.5px solid #e8f5e9", fontSize:20, fontFamily:FF, outline:"none", boxSizing:"border-box", textAlign:"center", letterSpacing:4, color:"#333", fontWeight:"bold" }} />
+                  </div>
+                  <button onClick={joinGroup} disabled={joinCode.length < 6} style={{ width:"100%", padding:14, borderRadius:14, border:"none", background:joinCode.length>=6?"linear-gradient(135deg,#2e7d32,#43a047)":"#e0e0e0", color:joinCode.length>=6?"#fff":"#aaa", fontWeight:"bold", fontSize:15, cursor:"pointer", fontFamily:FF, marginBottom:10 }}>
+                    🔗 加入群組
+                  </button>
+                  <button onClick={() => setShowJoinGroup(false)} style={{ width:"100%", padding:12, borderRadius:12, border:"none", background:"#f1f8e9", color:"#888", fontSize:14, cursor:"pointer", fontFamily:FF }}>取消</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {donateModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300 }} onClick={() => setDonateModal(null)}>
           <div style={{ background:"#fff", borderRadius:"22px 22px 0 0", padding:"24px 20px 32px", width:"100%", maxWidth:480 }} onClick={e=>e.stopPropagation()}>
