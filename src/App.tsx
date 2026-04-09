@@ -764,12 +764,22 @@ export default function EcoApp() {
         )}
 
         {/* 分頁列 */}
-        <div style={{ display:"flex", gap:4, marginTop:14, overflowX:"auto", paddingBottom:2 }}>
-          {TABS.map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ flexShrink:0, padding:"8px 10px", borderRadius:12, border:"none", background:tab===t?"rgba(255,255,255,0.25)":"transparent", color:"#fff", fontSize:10, fontWeight:tab===t?"bold":"normal", cursor:"pointer", fontFamily:FF, minWidth:48, textAlign:"center" }}>
-              {TAB_ICONS_M[t as keyof typeof TAB_ICONS_M]}<br/>{t}
-            </button>
-          ))}
+        <div style={{ marginTop:14 }}>
+          <div style={{ display:"flex", gap:4, marginBottom:4 }}>
+            {["挑戰","打卡","排行榜","贊助"].map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{ flex:1, padding:"8px 2px", borderRadius:12, border:"none", background:tab===t?"rgba(255,255,255,0.25)":"transparent", color:"#fff", fontSize:11, fontWeight:tab===t?"bold":"normal", cursor:"pointer", fontFamily:FF }}>
+                {TAB_ICONS_M[t as keyof typeof TAB_ICONS_M]}<br/>{t}
+              </button>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:4 }}>
+            {["發起","群組","通報"].map(t => (
+              <button key={t} onClick={() => setTab(t)} style={{ flex:1, padding:"8px 2px", borderRadius:12, border:"none", background:tab===t?"rgba(255,255,255,0.25)":"transparent", color:"#fff", fontSize:11, fontWeight:tab===t?"bold":"normal", cursor:"pointer", fontFamily:FF }}>
+                {TAB_ICONS_M[t as keyof typeof TAB_ICONS_M]}<br/>{t}
+              </button>
+            ))}
+          </div>
+        </div>
         </div>
       </div>
 
