@@ -1337,6 +1337,9 @@ export default function EcoApp() {
           </div>
         )}
       </div>
+
+      {/* 贊助 Modal */}
+      {donateModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300 }} onClick={() => setDonateModal(null)}>
           <div style={{ background:"#fff", borderRadius:"22px 22px 0 0", padding:"24px 20px 32px", width:"100%", maxWidth:480 }} onClick={e=>e.stopPropagation()}>
             <div style={{ textAlign:"center", marginBottom:20 }}>
