@@ -80,8 +80,27 @@ const DIFF_BADGE  = { 簡單:{bg:"#E8F5E9",color:"#388E3C"}, 中等:{bg:"#FFF8E1
 const ACCENT_POOL = ["#2E7D32","#1565C0","#F57F17","#E65100","#6A1B9A","#00695C","#C62828","#37474F"];
 const COLOR_POOL  = ["#E8F5E9","#E3F2FD","#FFF8E1","#FFF3E0","#F3E5F5","#E0F7FA","#FCE4EC","#ECEFF1"];
 const TASK_ICONS  = ["🌱","🌳","🌊","♻️","🌻","🧹","🚴","💧","🐝","☀️","🦋","🐢","🌿","🏕️","🌾"];
-const TABS        = ["挑戰","打卡","排行榜","贊助","發起","群組"];
-const TAB_ICONS_M = { 挑戰:"🌿", 打卡:"📅", 排行榜:"🏆", 贊助:"💚", 發起:"✨", 群組:"🏘️" };
+const TABS        = ["挑戰","打卡","排行榜","贊助","發起","群組","通報"];
+const TAB_ICONS_M = { 挑戰:"🌿", 打卡:"📅", 排行榜:"🏆", 贊助:"💚", 發起:"✨", 群組:"🏘️", 通報:"🚨" };
+
+// ── 通報類型 ──────────────────────────────────────────────────
+const REPORT_TYPES = [
+  { id:"garbage",  icon:"🗑️",  label:"垃圾汙染",   color:"#795548", bg:"#EFEBE9" },
+  { id:"water",    icon:"💧",  label:"水源汙染",   color:"#1565C0", bg:"#E3F2FD" },
+  { id:"air",      icon:"💨",  label:"空氣汙染",   color:"#546E7A", bg:"#ECEFF1" },
+  { id:"cutting",  icon:"🪓",  label:"非法砍伐",   color:"#2E7D32", bg:"#E8F5E9" },
+  { id:"animal",   icon:"🐾",  label:"動物傷害",   color:"#E65100", bg:"#FFF3E0" },
+  { id:"chemical", icon:"☢️",  label:"化學廢棄物", color:"#C62828", bg:"#FFEBEE" },
+  { id:"noise",    icon:"📢",  label:"噪音汙染",   color:"#6A1B9A", bg:"#F3E5F5" },
+  { id:"other",    icon:"⚠️",  label:"其他",       color:"#F57F17", bg:"#FFF8E1" },
+];
+
+const REPORT_STATUS: Record<string, { label:string, color:string, bg:string }> = {
+  pending:    { label:"待處理", color:"#F57F17", bg:"#FFF8E1" },
+  processing: { label:"處理中", color:"#1565C0", bg:"#E3F2FD" },
+  resolved:   { label:"已解決", color:"#2E7D32", bg:"#E8F5E9" },
+  rejected:   { label:"已駁回", color:"#C62828", bg:"#FFEBEE" },
+};
 
 // ── 群組榮譽系統 ──────────────────────────────────────────────
 const GROUP_HONORS = [
@@ -339,6 +358,15 @@ export default function EcoApp() {
   const [joinCode,        setJoinCode]        = useState("");
   const GROUP_ICONS = ["🌿","🌳","🌍","🌊","☀️","🐝","🦋","♻️","🌱","⚡"];
 
+  // ── 通報相關狀態 ──────────────────────────────────────────────
+  const [reports,       setReports]       = useState<any[]>([]);
+  const [showNewReport, setShowNewReport] = useState(false);
+  const [reportFilter,  setReportFilter]  = useState("全部");
+  const [newReport,     setNewReport]     = useState({
+    type: "garbage", desc: "", location: "", imageUrl: "",
+  });
+  const [reportImg,     setReportImg]     = useState<string|null>(null);
+
   function showToast(msg: string) { setToast(msg); setTimeout(()=>setToast(null),2500); }
 
   // ── 群組監聽 ──────────────────────────────────────────────────
@@ -412,6 +440,52 @@ export default function EcoApp() {
     if (!uid || !myGroup) return;
     await update(ref(db, `groups/${myGroup.id}/members/${uid}`), { points, displayName: userName, avatar: userAvatar });
     await update(ref(db, `groups/${myGroup.id}/weeklyPoints`), { [uid]: points });
+  }
+
+  // ── 通報監聽 ──────────────────────────────────────────────────
+  useEffect(() => {
+    const reportsRef = ref(db, "reports");
+    const unsub = onValue(reportsRef, snap => {
+      if (!snap.exists()) { setReports([]); return; }
+      const data = snap.val();
+      const list = Object.entries(data)
+        .map(([id, val]: any) => ({ id, ...val }))
+        .sort((a: any, b: any) => (b.createdAt||0) - (a.createdAt||0));
+      setReports(list);
+    });
+    return unsub;
+  }, []);
+
+  // ── 提交通報 ──────────────────────────────────────────────────
+  async function submitReport() {
+    if (!newReport.desc.trim() || !newReport.location.trim()) return;
+    const reportRef = push(ref(db, "reports"));
+    await set(reportRef, {
+      type: newReport.type,
+      desc: newReport.desc.trim(),
+      location: newReport.location.trim(),
+      imageUrl: reportImg || "",
+      reporterUid: uid || "guest",
+      reporterName: userName,
+      reporterAvatar: userAvatar,
+      status: "pending",
+      createdAt: Date.now(),
+      response: "",
+    });
+    setNewReport({ type:"garbage", desc:"", location:"", imageUrl:"" });
+    setReportImg(null);
+    setShowNewReport(false);
+    showToast("🚨 通報已送出！");
+  }
+
+  // ── 圖片轉 Base64 ─────────────────────────────────────────────
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { showToast("⚠️ 圖片請小於 2MB"); return; }
+    const reader = new FileReader();
+    reader.onload = () => setReportImg(reader.result as string);
+    reader.readAsDataURL(file);
   }
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -1111,8 +1185,149 @@ export default function EcoApp() {
             )}
           </div>
         )}
+
+        {/* ── 通報 Tab ── */}
+        {tab === "通報" && (
+          <div>
+            {/* 標題列 */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div>
+                <div style={{ fontWeight:"bold", fontSize:16, color:"#c62828" }}>🚨 汙染通報平台</div>
+                <div style={{ fontSize:12, color:"#aaa", marginTop:2 }}>發現問題，立即通報</div>
+              </div>
+              <button onClick={() => isGuest ? showToast("請先登入再通報") : setShowNewReport(true)}
+                style={{ padding:"8px 16px", borderRadius:99, border:"none", background:"#c62828", color:"#fff", fontWeight:"bold", fontSize:13, cursor:"pointer", fontFamily:FF }}>
+                + 新增通報
+              </button>
+            </div>
+
+            {/* 篩選列 */}
+            <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:8, marginBottom:16 }}>
+              {["全部", ...REPORT_TYPES.map(r=>r.label)].map(f => (
+                <button key={f} onClick={() => setReportFilter(f)}
+                  style={{ flexShrink:0, padding:"6px 14px", borderRadius:99, border:"none", background:reportFilter===f?"#c62828":"#fff", color:reportFilter===f?"#fff":"#555", fontWeight:reportFilter===f?"bold":"normal", fontSize:12, cursor:"pointer", fontFamily:FF, boxShadow:"0 1px 4px rgba(0,0,0,0.08)" }}>
+                  {f}
+                </button>
+              ))}
+            </div>
+
+            {/* 通報列表 */}
+            {reports.filter(r => reportFilter==="全部" || REPORT_TYPES.find(t=>t.id===r.type)?.label===reportFilter).length === 0 ? (
+              <div style={{ textAlign:"center", padding:40, color:"#aaa" }}>
+                <div style={{ fontSize:40, marginBottom:8 }}>📋</div>
+                <div>目前沒有通報記錄</div>
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {reports.filter(r => reportFilter==="全部" || REPORT_TYPES.find(t=>t.id===r.type)?.label===reportFilter).map(r => {
+                  const rType = REPORT_TYPES.find(t => t.id===r.type) || REPORT_TYPES[7];
+                  const rStatus = REPORT_STATUS[r.status] || REPORT_STATUS.pending;
+                  return (
+                    <div key={r.id} style={{ background:"#fff", borderRadius:18, padding:16, boxShadow:"0 2px 12px rgba(0,0,0,0.06)", borderLeft:`4px solid ${rType.color}` }}>
+                      <div style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:8 }}>
+                        <div style={{ fontSize:28 }}>{rType.icon}</div>
+                        <div style={{ flex:1 }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                            <div style={{ fontWeight:"bold", fontSize:14, color:rType.color }}>{rType.label}</div>
+                            <div style={{ fontSize:11, background:rStatus.bg, color:rStatus.color, borderRadius:99, padding:"3px 10px", fontWeight:"bold" }}>
+                              {rStatus.label}
+                            </div>
+                          </div>
+                          <div style={{ fontSize:13, color:"#555", marginBottom:6 }}>{r.desc}</div>
+                          <div style={{ fontSize:12, color:"#888" }}>📍 {r.location}</div>
+                        </div>
+                      </div>
+                      {r.imageUrl && (
+                        <img src={r.imageUrl} alt="通報照片" style={{ width:"100%", borderRadius:10, maxHeight:180, objectFit:"cover", marginBottom:8 }} />
+                      )}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:8 }}>
+                        <div style={{ fontSize:11, color:"#aaa" }}>
+                          {r.reporterAvatar} {r.reporterName} · {new Date(r.createdAt).toLocaleDateString("zh-TW")}
+                        </div>
+                        {r.response && (
+                          <div style={{ fontSize:11, color:"#2e7d32", fontWeight:"bold" }}>💬 平台已回應</div>
+                        )}
+                      </div>
+                      {r.response && (
+                        <div style={{ marginTop:8, background:"#e8f5e9", borderRadius:10, padding:"8px 12px", fontSize:12, color:"#2e7d32", borderLeft:"3px solid #2e7d32" }}>
+                          📢 平台回應：{r.response}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 新增通報 Modal */}
+            {showNewReport && (
+              <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300 }} onClick={() => setShowNewReport(false)}>
+                <div style={{ background:"#fff", borderRadius:"22px 22px 0 0", padding:"24px 20px 32px", width:"100%", maxWidth:480, maxHeight:"90vh", overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
+                  <div style={{ textAlign:"center", marginBottom:18 }}>
+                    <div style={{ fontSize:28 }}>🚨</div>
+                    <div style={{ fontWeight:"bold", fontSize:17, color:"#c62828", marginTop:4 }}>新增汙染通報</div>
+                  </div>
+
+                  {/* 通報類型 */}
+                  <div style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:12, fontWeight:"bold", color:"#555", marginBottom:8 }}>通報類型 *</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                      {REPORT_TYPES.map(t => (
+                        <button key={t.id} onClick={() => setNewReport(p=>({...p,type:t.id}))}
+                          style={{ padding:"10px 12px", borderRadius:12, border:`2px solid ${newReport.type===t.id?t.color:"#eee"}`, background:newReport.type===t.id?t.bg:"#fafafa", color:t.color, fontWeight:"bold", fontSize:13, cursor:"pointer", fontFamily:FF, display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:18 }}>{t.icon}</span>{t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 地點 */}
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ fontSize:12, fontWeight:"bold", color:"#555", marginBottom:6 }}>📍 地點 *</div>
+                    <input value={newReport.location} onChange={e=>setNewReport(p=>({...p,location:e.target.value}))}
+                      placeholder="例如：台中市南屯區文心路" style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #ffcdd2", fontSize:14, fontFamily:FF, outline:"none", boxSizing:"border-box", color:"#333" }} />
+                  </div>
+
+                  {/* 描述 */}
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ fontSize:12, fontWeight:"bold", color:"#555", marginBottom:6 }}>📝 描述問題 *</div>
+                    <textarea value={newReport.desc} onChange={e=>setNewReport(p=>({...p,desc:e.target.value}))}
+                      placeholder="請詳細描述您發現的問題，包含嚴重程度、影響範圍等..." rows={4}
+                      style={{ width:"100%", padding:"10px 14px", borderRadius:12, border:"1.5px solid #ffcdd2", fontSize:13, fontFamily:FF, outline:"none", resize:"none", boxSizing:"border-box", color:"#333" }} />
+                  </div>
+
+                  {/* 上傳照片 */}
+                  <div style={{ marginBottom:20 }}>
+                    <div style={{ fontSize:12, fontWeight:"bold", color:"#555", marginBottom:6 }}>📸 上傳照片（選填，限 2MB）</div>
+                    <label style={{ display:"block", cursor:"pointer" }}>
+                      <div style={{ border:"2px dashed #ffcdd2", borderRadius:12, padding:16, textAlign:"center", background:"#fff9f9" }}>
+                        {reportImg ? (
+                          <img src={reportImg} alt="預覽" style={{ width:"100%", maxHeight:150, objectFit:"cover", borderRadius:8 }} />
+                        ) : (
+                          <div>
+                            <div style={{ fontSize:32, marginBottom:4 }}>📷</div>
+                            <div style={{ fontSize:13, color:"#aaa" }}>點擊選擇照片</div>
+                          </div>
+                        )}
+                      </div>
+                      <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display:"none" }} />
+                    </label>
+                    {reportImg && (
+                      <button onClick={() => setReportImg(null)} style={{ marginTop:6, fontSize:12, color:"#c62828", background:"none", border:"none", cursor:"pointer" }}>✕ 移除照片</button>
+                    )}
+                  </div>
+
+                  <button onClick={submitReport} disabled={!newReport.desc.trim()||!newReport.location.trim()}
+                    style={{ width:"100%", padding:14, borderRadius:14, border:"none", background:newReport.desc.trim()&&newReport.location.trim()?"linear-gradient(135deg,#c62828,#e53935)":"#e0e0e0", color:newReport.desc.trim()&&newReport.location.trim()?"#fff":"#aaa", fontWeight:"bold", fontSize:15, cursor:"pointer", fontFamily:FF, marginBottom:10 }}>
+                    🚨 送出通報
+                  </button>
+                  <button onClick={() => { setShowNewReport(false); setReportImg(null); }} style={{ width:"100%", padding:12, borderRadius:12, border:"none", background:"#f5f5f5", color:"#888", fontSize:14, cursor:"pointer", fontFamily:FF }}>取消</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      {donateModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"flex-end", justifyContent:"center", zIndex:300 }} onClick={() => setDonateModal(null)}>
           <div style={{ background:"#fff", borderRadius:"22px 22px 0 0", padding:"24px 20px 32px", width:"100%", maxWidth:480 }} onClick={e=>e.stopPropagation()}>
             <div style={{ textAlign:"center", marginBottom:20 }}>
