@@ -780,7 +780,6 @@ export default function EcoApp() {
             ))}
           </div>
         </div>
-        </div>
       </div>
 
       {/* 內容區 */}
